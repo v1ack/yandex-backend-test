@@ -2,7 +2,6 @@ from flask import request, jsonify, abort
 from app import app, db
 from app.models import Citizen
 from datetime import date
-from numpy import percentile
 from app.utils import *
 
 
@@ -91,10 +90,11 @@ def statistic(import_id):
     today = date.today()
     for citizen in citizens:
         cities[citizen.town] = cities.get(citizen.town, []) + [citizen.get_age(today)]
+    cities = {city: sorted(ages) for city, ages in cities.items()}
     data = [{"town": city,
-             "p50": percentile(ages, 50, interpolation='linear'),
-             "p75": percentile(ages, 75, interpolation='linear'),
-             "p99": percentile(ages, 99, interpolation='linear')} for city, ages in cities.items()]
+             "p50": percentile(ages, 0.5),
+             "p75": percentile(ages, 0.75),
+             "p99": percentile(ages, 0.99)} for city, ages in cities.items()]
     return jsonify({'data': data}), 200
 
 

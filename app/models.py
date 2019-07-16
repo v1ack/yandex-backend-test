@@ -15,7 +15,7 @@ class Citizen(db.Model):
     name = db.Column(db.String)
     birth_date = db.Column(db.Date)
     gender = db.Column(db.String)
-    relatives = db.Column(db.String)
+    relatives = db.Column(db.String)  # Да да, тут json 🙃
     import_id = db.Column(db.Integer)
 
     def __init__(self, citizen_id, town, street, building, appartement, name, birth_date, gender, relatives, import_id):
@@ -54,6 +54,8 @@ class Citizen(db.Model):
         return int(self.citizen_id.split('_')[0])
 
     def get_age(self, today=date.today()):
-        # TODO Тут довольно странная фигня. Может быть неточно. Возможно стоит переделать...
-        delta = today - self.birth_date
-        return int(delta.days // 365.25)
+        years = today.year - self.birth_date.year
+        if today.month < self.birth_date.month or \
+                (today.month == self.birth_date.month and today.day < self.birth_date.day):
+            years -= 1
+        return years
