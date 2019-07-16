@@ -1,7 +1,9 @@
-import json
 from flask import request, jsonify, abort
 from app import app, db
 from app.models import Citizen
+from datetime import date
+from numpy import percentile
+from app.utils import *
 
 
 @app.route('/', methods=['GET', 'POST'])
@@ -14,10 +16,10 @@ def imports():
     # Принимает на вход набор с данными о жителях в формате json и сохраняет его с уникальным идентификатором.
     if not request.json or 'citizens' not in request.json:
         abort(400)
-    # TODO Динамическое изменение import_id
-    import_id = 1
+    citizens_count = Citizen.query.count()
+    import_id = Citizen.query.filter_by(id=citizens_count - 1).one().import_id + 1 if citizens_count else 1
     for citizen in request.json['citizens']:
-        db.session.add(Citizen(citizen_id=f'{citizen["citizen_id"]}_{import_id}',
+        db.session.add(Citizen(citizen_id=citizen["citizen_id"],
                                town=citizen['town'],
                                street=citizen['street'],
                                building=citizen['building'],
@@ -25,7 +27,7 @@ def imports():
                                name=citizen['name'],
                                birth_date=citizen['birth_date'],
                                gender=citizen['gender'],
-                               relatives=json.dumps([f'{i}_{import_id}' for i in citizen['relatives']]),
+                               relatives=citizen['relatives'],
                                import_id=import_id))
     db.session.commit()
     return jsonify({'data': {'import_id': import_id}}), 201
@@ -84,4 +86,26 @@ def birthdays(import_id):
 def statistic(import_id):
     # Возвращает статистику по городам для указанного набора данных в разрезе
     # возраста жителей: p50, p75, p99, где число - это значение перцентиля
-    pass
+    citizens = Citizen.query.filter_by(import_id=import_id)
+    cities = {}
+    today = date.today()
+    for citizen in citizens:
+        cities[citizen.town] = cities.get(citizen.town, []) + [citizen.get_age(today)]
+    data = [{"town": city,
+             "p50": percentile(ages, 50, interpolation='linear'),
+             "p75": percentile(ages, 75, interpolation='linear'),
+             "p99": percentile(ages, 99, interpolation='linear')} for city, ages in cities.items()]
+    return jsonify({'data': data}), 200
+
+
+@app.route('/init', methods=['GET'])
+def init_db():
+    # Инициализация БД, например после удаления
+    db.create_all()
+    return 'done'
+
+
+@app.route('/generate/<int:count>', methods=['GET'])
+def generate(count):
+    # Генерация JSON для импорта
+    return generate_json(count)
