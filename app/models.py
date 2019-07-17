@@ -32,15 +32,15 @@ class Citizen(db.Model):
         self.import_id = import_id
 
     def get_dict(self):
-        return json.dumps(dict(citizen_id=self.get_id(),
-                               town=self.town,
-                               street=self.street,
-                               building=self.building,
-                               appartement=self.appartement,
-                               name=self.name,
-                               birth_date=self.birth_date.strftime('%d.%m.%Y'),
-                               gender=self.gender,
-                               relatives=[int(i.split('_')[0]) for i in json.loads(self.relatives)]))
+        return dict(citizen_id=self.get_id(),
+                    town=self.town,
+                    street=self.street,
+                    building=self.building,
+                    appartement=self.appartement,
+                    name=self.name,
+                    birth_date=self.birth_date.strftime('%d.%m.%Y'),
+                    gender=self.gender,
+                    relatives=[int(i.split('_')[0]) for i in json.loads(self.relatives)])
 
     def birthdays_months(self):
         relatives = json.loads(self.relatives)

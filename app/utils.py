@@ -1,26 +1,34 @@
-import json
 import math
 import random
 
 
-def generate_json(count):
+def generate_dict_for_json(count):
     cities = ['Москва', 'Санкт-Петербург', 'Новосибирск', 'Екатеринбург', 'Нижний Новгород', 'Казань']
     streets = 'В список городов России включены все 1117 городов Российской Федерации с указанием численности \
     населения по данным предварительных итогов Всероссийской переписи населения 2010 года а также даты \
     их основания или первого упоминания в исторических источниках Города федерального значения и центры \
     столицы регионов выделены цветовой заливкой ячеек'.split()
     genders = ['male', 'female']
-    return json.dumps({"citizens": [{
+
+    def rand_day():
+        rand = str(random.randint(1, 28))
+        return rand if len(rand) - 1 else '0' + rand
+
+    def rand_month():
+        rand = str(random.randint(1, 12))
+        return rand if len(rand) - 1 else '0' + rand
+
+    return {"citizens": [{
         "citizen_id": i,
         "town": random.choice(cities),
         "street": random.choice(streets),
         "building": str(random.randint(1, 1000)),
         "appartement": str(random.randint(1, 1000)),
         "name": "Иванов Иван Иванович",
-        "birth_date": f'{random.randint(1, 28)}.{random.randint(1, 12)}.{random.randint(1970, 2018)}',
+        "birth_date": f'{rand_day()}.{rand_month()}.{random.randint(1970, 2018)}',
         "gender": random.choice(genders),
-        "relatives": list(set([random.randint(1, 10) for _ in range(random.randint(0, 4))]))
-    } for i in range(count)]})
+        "relatives": list(set([random.randint(0, count - 1) for _ in range(random.randint(0, 4))]))
+    } for i in range(count)]}
 
 
 def percentile(N, percent, key=lambda x: x):

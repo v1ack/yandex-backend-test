@@ -57,6 +57,7 @@ def edit_info(import_id, citizen_id):
         citizen.gender = request.json['gender']
     if 'relatives' in request.json:
         citizen.relatives = json.dumps(request.json['relatives'])
+    db.session.commit()
     return jsonify(citizen.get_dict()), 200
 
 
@@ -108,4 +109,4 @@ def init_db():
 @app.route('/generate/<int:count>', methods=['GET'])
 def generate(count):
     # Генерация JSON для импорта
-    return generate_json(count)
+    return jsonify(generate_dict_for_json(count))
