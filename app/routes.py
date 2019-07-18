@@ -56,7 +56,7 @@ def edit_info(import_id, citizen_id):
     if 'gender' in request.json:
         citizen.gender = request.json['gender']
     if 'relatives' in request.json:
-        citizen.relatives = json.dumps(request.json['relatives'])
+        citizen.relatives = request.json['relatives']
     db.session.commit()
     return jsonify(citizen.get_dict()), 200
 
@@ -104,6 +104,13 @@ def init_db():
     # Инициализация БД, например после удаления
     db.create_all()
     return 'done'
+
+
+@app.route('/make_citizens_dust', methods=['GET'])
+def delete_all():
+    # Удаление базы, полное и необратимое
+    db.drop_all()
+    return 'done, lol'
 
 
 @app.route('/generate/<int:count>', methods=['GET'])

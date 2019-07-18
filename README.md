@@ -10,9 +10,11 @@
 ##### Сторонние
 - [flask](https://palletsprojects.com/p/flask/ "flask") - framework для веб-приложений
 - [SQLAlchemy](https://www.sqlalchemy.org "SQLAlchemy") (flask_sqlalchemy) - ORM для СУБД, что позваляет обращаться к записям из БД как к объектам
+- [psycopg2](https://pypi.org/project/psycopg2/ "psycopg2") - драйвер для PostgreSQL
+- [Gunicorn](https://gunicorn.org "Gunicorn") - сервер
 
-похоже понадобятся еще библиотеки для запуска сервера...
-и еще надо sqlite на нормальную СУБД заменить, а то чо как лох
+### Программы
+- [PostgreSQL](https://www.postgresql.org "PostgreSQL") СУБД
 
 ### Методы API
 `POST /imports`
@@ -30,18 +32,49 @@
 `GET /imports/<int:import_id>/towns/stat/percentile/age`
 Возвращает статистику по городам для указанного набора данных в разрезе возраста жителей: p50, p75, p99, где число - это значение перцентиля
 
-`POST /init`
-Инициализация БД
-
 `GET /generate/<int:count>`
 Генерация JSON для импорта
 
+`POST /init`
+Инициализация БД
+
+`GET /make_citizens_dust`
+Полное и необратимое удаление ~~всего и вся~~ бызы данных
+
 ### Установка и развертывание
-(понятия не имею, честно)
+Установка всех зависимостей
+
+    sudo apt-get install pip3 postgresql postgresql-contrib libpq-dev
+    pip3 install flask flask_sqlalchemy psycopg2 gunicorn
+    git clone https://github.com/v1ack/yandex-backend-test.git
 
 ### Запуск сервера
-В главной папке репозитория открыть командную строку и выполнить `flask run`
-(Да-да, хреновый способ, годится только для разработки, потом переделаю)
+В папке приложения
+
+    gunicorn -b 0.0.0.0:8080 app:app
+После первого запуска необходимо инициализировать БД `POST /init`
+
+Чтобы это все само работало мне понадобилось очень много времени
+В папке `/etc/systemd/system` надо создать `gunicorn.service` со следующим содержанием
+
+    [Unit]
+    Description=gunicorn daemon
+    After=network.target
+    
+    [Service]
+    User=entrant
+    WorkingDirectory=/home/entrant/yandex-backend-test
+    ExecStart=/home/entrant/.local/bin/gunicorn --bind 0.0.0.0:8080 app:app
+    ExecReload=/bin/kill -s HUP $MAINPID
+    ExecStop=/bin/kill -s TERM $MAINPID
+    PrivateTmp=true
+    
+    [Install]
+    WantedBy=multi-user.target
+Дальше открываем консоль и заставляем всё это работать
+
+    sudo systemctl enable gunicorn.service
+    sudo systemctl start gunicorn.service
 
 ### Тесты
 **tests.py** - тесты все 5 API + тесты на нагрузку (убрать декораторы, чтобы запустить)
