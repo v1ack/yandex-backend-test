@@ -12,7 +12,8 @@ class UnitTest(unittest.TestCase):
     def setUp(self):
         app.config['TESTING'] = True
         app.config['CSRF_ENABLED'] = False
-        app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'test.db')
+        # app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'test.db')
+        app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://postgres:postgres@localhost/tests'
         self.app = app.test_client()
         db.create_all()
 
@@ -39,7 +40,8 @@ class UnitTest(unittest.TestCase):
         random_json = json.dumps(generate_dict_for_json(20))
         self.app.post('/imports', content_type='application/json', data=random_json)
         response = self.app.get('/imports/1/citizens')
-        assert response.get_json()['data'] == json.loads(random_json)['citizens']
+        assert sorted(response.get_json()['data'], key=lambda x: x['citizen_id']) == sorted(
+            json.loads(random_json)['citizens'], key=lambda x: x['citizen_id'])
 
     def test_patch(self):
         random_json = json.dumps(generate_dict_for_json(20))
@@ -47,7 +49,7 @@ class UnitTest(unittest.TestCase):
         citizen_id = randint(1, 10)
         self.app.patch(f'/imports/1/citizens/{citizen_id}', content_type='application/json',
                        data='{"town":"Керчь","street":"Иосифа Бродского"}')
-        citizen = Citizen.query.filter_by(citizen_id=f'{citizen_id}_{1}').one()
+        citizen = Citizen.query.filter_by(citizen_id=citizen_id, import_id=1).one()
         assert citizen.town == 'Керчь'
         assert citizen.street == 'Иосифа Бродского'
 
@@ -63,15 +65,15 @@ class UnitTest(unittest.TestCase):
                  '27.10.2002',
                  '21.08.1984',
                  '24.02.2016']
-        relatives = [["7"],
-                     ["0", "3", "5"],
+        relatives = [[7],
+                     [0, 3, 5],
                      [],
-                     ["0", "9"],
-                     ["1"],
+                     [0, 9],
+                     [1],
                      [],
-                     ["0", "9", "2"],
-                     ["0", "6"],
-                     ["9", "4"],
+                     [0, 9, 2],
+                     [0, 6],
+                     [9, 4],
                      []]
         for i in range(10):
             random_dict['citizens'][i].update({'birth_date': dates[i], 'relatives': relatives[i]})
@@ -119,6 +121,8 @@ class UnitTest(unittest.TestCase):
         self.app.post('/imports', content_type='application/json', data=random_json)
         response = self.app.get('/imports/1/citizens')
         assert response.status_code == 200
+        assert sorted(response.get_json()['data'], key=lambda x: x['citizen_id']) == sorted(
+            json.loads(random_json)['citizens'], key=lambda x: x['citizen_id'])
 
     @unittest.skip
     def test_birthdays_10000(self):

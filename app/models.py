@@ -1,4 +1,3 @@
-import json
 from collections import Counter
 from datetime import date
 
@@ -7,7 +6,7 @@ from app import db
 
 class Citizen(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    citizen_id = db.Column(db.String)
+    citizen_id = db.Column(db.Integer)
     town = db.Column(db.String)
     street = db.Column(db.String)
     building = db.Column(db.String)
@@ -15,11 +14,11 @@ class Citizen(db.Model):
     name = db.Column(db.String)
     birth_date = db.Column(db.Date)
     gender = db.Column(db.String)
-    relatives = db.Column(db.String)  # Да да, тут json 🙃
+    relatives = db.Column(db.ARRAY(db.Integer))
     import_id = db.Column(db.Integer)
 
     def __init__(self, citizen_id, town, street, building, appartement, name, birth_date, gender, relatives, import_id):
-        self.citizen_id = f'{citizen_id}_{import_id}'
+        self.citizen_id = citizen_id
         self.town = town
         self.street = street
         self.building = building
@@ -28,11 +27,11 @@ class Citizen(db.Model):
         day, month, year = map(int, birth_date.split('.'))
         self.birth_date = date(year, month, day)
         self.gender = gender
-        self.relatives = json.dumps([f'{i}_{import_id}' for i in relatives])
+        self.relatives = relatives
         self.import_id = import_id
 
     def get_dict(self):
-        return dict(citizen_id=self.get_id(),
+        return dict(citizen_id=self.citizen_id,
                     town=self.town,
                     street=self.street,
                     building=self.building,
@@ -40,18 +39,15 @@ class Citizen(db.Model):
                     name=self.name,
                     birth_date=self.birth_date.strftime('%d.%m.%Y'),
                     gender=self.gender,
-                    relatives=[int(i.split('_')[0]) for i in json.loads(self.relatives)])
+                    relatives=self.relatives)
 
     def birthdays_months(self):
-        relatives = json.loads(self.relatives)
         months = Counter()
-        for relative_id in relatives:
-            birthday = str(Citizen.query.filter_by(citizen_id=relative_id).first().birth_date.month)
+        for relative_id in self.relatives:
+            birthday = str(
+                Citizen.query.filter_by(citizen_id=relative_id, import_id=self.import_id).first().birth_date.month)
             months[birthday] += 1
         return months
-
-    def get_id(self):
-        return int(self.citizen_id.split('_')[0])
 
     def get_age(self, today=date.today()):
         years = today.year - self.birth_date.year

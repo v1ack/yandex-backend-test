@@ -40,7 +40,7 @@ def edit_info(import_id, citizen_id):
     # building, appartement), кроме citizen_id .
     if not request.json:
         abort(400)
-    citizen = Citizen.query.filter_by(citizen_id=f'{citizen_id}_{import_id}').first()
+    citizen = Citizen.query.filter_by(citizen_id=citizen_id, import_id=import_id).first()
     if 'town' in request.json:
         citizen.town = request.json['town']
     if 'street' in request.json:
@@ -78,7 +78,7 @@ def birthdays(import_id):
     for citizen in citizens:
         birthdays_months = citizen.birthdays_months()
         for k, v in birthdays_months.items():
-            months[k].append({"citizen_id": citizen.get_id(), "presents": v})
+            months[k].append({"citizen_id": citizen.citizen_id, "presents": v})
     return jsonify({"data": months}), 200
 
 
