@@ -3,6 +3,8 @@ from app import app, db
 from app.models import Citizen
 from datetime import date
 from app.utils import *
+from threading import Thread
+from sqlalchemy.orm.exc import NoResultFound
 
 
 @app.route('/', methods=['GET', 'POST'])
@@ -40,7 +42,10 @@ def edit_info(import_id, citizen_id):
     # building, appartement), кроме citizen_id .
     if not request.json:
         abort(400)
-    citizen = Citizen.query.filter_by(citizen_id=citizen_id, import_id=import_id).first()
+    try:
+        citizen = Citizen.query.filter_by(citizen_id=citizen_id, import_id=import_id).one()
+    except NoResultFound:
+        abort(400)
     if 'town' in request.json:
         citizen.town = request.json['town']
     if 'street' in request.json:
@@ -65,6 +70,8 @@ def edit_info(import_id, citizen_id):
 def get_info(import_id):
     # Возвращает список всех жителей для указанного набора данных
     citizens = Citizen.query.filter_by(import_id=import_id)
+    if not citizens.count():
+        abort(400)
     return jsonify({'data': [i.get_dict() for i in citizens]}), 200
 
 
@@ -74,11 +81,30 @@ def birthdays(import_id):
     # ближайшим родственникам (1-го порядка), сгруппированных по месяцам из
     # указанного набора данных.
     citizens = Citizen.query.filter_by(import_id=import_id)
+    count = citizens.count()
+    if not count:
+        abort(400)
     months = {f'{i}': [] for i in range(1, 13)}
-    for citizen in citizens:
-        birthdays_months = citizen.birthdays_months()
-        for k, v in birthdays_months.items():
-            months[k].append({"citizen_id": citizen.citizen_id, "presents": v})
+    # Если > 100 человек, то работаем в 2 потока, ибо реально помогает
+    if count > 100:
+        half = count // 2
+
+        def multi_threading(_months, _citizens):
+            for citizen in _citizens:
+                birthdays_months = citizen.birthdays_months()
+                for k, v in birthdays_months.items():
+                    _months[k].append({"citizen_id": citizen.citizen_id, "presents": v})
+            db.session.close()
+
+        threads = [Thread(target=multi_threading, args=(months, citizens[:half])),
+                   Thread(target=multi_threading, args=(months, citizens[half:]))]
+        [i.start() for i in threads]
+        [i.join() for i in threads]
+    else:
+        for citizen in citizens:
+            birthdays_months = citizen.birthdays_months()
+            for k, v in birthdays_months.items():
+                months[k].append({"citizen_id": citizen.citizen_id, "presents": v})
     return jsonify({"data": months}), 200
 
 
@@ -87,6 +113,8 @@ def statistic(import_id):
     # Возвращает статистику по городам для указанного набора данных в разрезе
     # возраста жителей: p50, p75, p99, где число - это значение перцентиля
     citizens = Citizen.query.filter_by(import_id=import_id)
+    if not citizens.count():
+        abort(400)
     cities = {}
     today = date.today()
     for citizen in citizens:
