@@ -1,10 +1,9 @@
 from flask import request, jsonify, abort
 from sqlalchemy.orm import load_only
-from app import app, db
+from app import app, db, redis
 from app.models import Citizen
 from datetime import date
 from app.utils import *
-from threading import Thread
 import re
 from sqlalchemy.orm.exc import NoResultFound
 
@@ -90,6 +89,7 @@ def edit_info(import_id, citizen_id):
             if re.match(r'^(\d{2}[.]){2}\d{4}$', request.json['birth_date']):
                 day, month, year = map(int, request.json['birth_date'].split('.'))
                 citizen.birth_date = date(year, month, day)
+                redis.set(f'{citizen_id}_{import_id}', month)
             else:
                 raise ValueError
         if 'gender' in request.json:
@@ -125,26 +125,10 @@ def birthdays(import_id):
     if not count:
         abort(400)
     months = {f'{i}': [] for i in range(1, 13)}
-    # Если > 100 человек, то работаем в 2 потока, ибо реально помогает
-    if count > 100:
-        half = count // 2
-
-        def multi_threading(_months, _citizens):
-            for citizen in _citizens:
-                birthdays_months = citizen.birthdays_months()
-                for k, v in birthdays_months.items():
-                    _months[k].append({"citizen_id": citizen.citizen_id, "presents": v})
-            db.session.close()
-
-        threads = [Thread(target=multi_threading, args=(months, citizens[:half])),
-                   Thread(target=multi_threading, args=(months, citizens[half:]))]
-        [i.start() for i in threads]
-        [i.join() for i in threads]
-    else:
-        for citizen in citizens:
-            birthdays_months = citizen.birthdays_months()
-            for k, v in birthdays_months.items():
-                months[k].append({"citizen_id": citizen.citizen_id, "presents": v})
+    for citizen in citizens:
+        birthdays_months = citizen.birthdays_months()
+        for k, v in birthdays_months.items():
+            months[k].append({"citizen_id": citizen.citizen_id, "presents": v})
     return jsonify({"data": months}), 200
 
 
@@ -178,6 +162,7 @@ def init_db():
 def delete_all():
     # Удаление базы, полное и необратимое
     db.drop_all()
+    redis.flushdb()
     return 'done, lol'
 
 

@@ -1,8 +1,7 @@
 from collections import Counter
 from datetime import date
-from sqlalchemy.orm import load_only
 
-from app import db
+from app import db, redis
 
 
 class Citizen(db.Model):
@@ -30,6 +29,7 @@ class Citizen(db.Model):
         self.gender = gender
         self.relatives = relatives
         self.import_id = import_id
+        redis.set(f'{citizen_id}_{import_id}', month)
 
     def get_dict(self):
         return dict(citizen_id=self.citizen_id,
@@ -45,8 +45,7 @@ class Citizen(db.Model):
     def birthdays_months(self):
         months = Counter()
         for relative_id in self.relatives:
-            birthday = str(Citizen.query.filter_by(citizen_id=relative_id, import_id=self.import_id).options(
-                load_only('birth_date')).first().birth_date.month)
+            birthday = redis.get(f'{relative_id}_{self.import_id}')
             months[birthday] += 1
         return months
 

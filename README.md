@@ -11,10 +11,12 @@
 - [flask](https://palletsprojects.com/p/flask/ "flask") - framework для веб-приложений
 - [SQLAlchemy](https://www.sqlalchemy.org "SQLAlchemy") (flask_sqlalchemy) - ORM для СУБД, что позваляет обращаться к записям из БД как к объектам
 - [psycopg2](https://pypi.org/project/psycopg2/ "psycopg2") - драйвер для PostgreSQL
+- [redis](https://github.com/andymccurdy/redis-py "redis") - клиент redis для python
 - [Gunicorn](https://gunicorn.org "Gunicorn") - сервер
 
 ### Программы
 - [PostgreSQL](https://www.postgresql.org "PostgreSQL") СУБД
+- [redis](https://redis.io "https://redis.io") - база данных "ключ-значение", оказалась намного более эффективным решением для хранения месяцев рождения, чем база данных (скорость выросла в 25 раз)
 
 ### Методы API
 `POST /imports`
@@ -44,8 +46,8 @@
 ### Установка и развертывание
 Установка всех зависимостей
 
-    sudo apt-get install pip3 postgresql postgresql-contrib libpq-dev
-    pip3 install flask flask_sqlalchemy psycopg2 gunicorn
+    sudo apt-get install pip3 postgresql postgresql-contrib libpq-dev redis-server
+    pip3 install flask flask_sqlalchemy psycopg2 gunicorn redis
     git clone https://github.com/v1ack/yandex-backend-test.git
 
 ### Запуск сервера

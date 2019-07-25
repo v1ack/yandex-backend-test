@@ -11,12 +11,14 @@ class UnitTest(unittest.TestCase):
         app.config['TESTING'] = True
         app.config['CSRF_ENABLED'] = False
         app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://postgres:postgres@localhost/tests'
+        app.config['REDIS_DATABASE_ID'] = 1
         self.app = app.test_client()
         db.create_all()
 
     def tearDown(self):
         db.session.remove()
         db.drop_all()
+        redis.flushdb()
 
     def test_index(self):
         response = self.app.get('/')
@@ -80,7 +82,6 @@ class UnitTest(unittest.TestCase):
         assert response['7'] == []
         assert response['4'][0]['citizen_id'] == 8
         assert response['12'][0]['presents'] == 1
-        # assert response.get_json() == json.loads(right)
 
     def test_stat(self):
         random_dict = generate_dict_for_json(10)
