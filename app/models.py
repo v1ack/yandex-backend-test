@@ -1,5 +1,6 @@
 from collections import Counter
 from datetime import date
+from sqlalchemy.orm import load_only
 
 from app import db
 
@@ -10,7 +11,7 @@ class Citizen(db.Model):
     town = db.Column(db.String)
     street = db.Column(db.String)
     building = db.Column(db.String)
-    appartement = db.Column(db.String)
+    appartement = db.Column(db.Integer)
     name = db.Column(db.String)
     birth_date = db.Column(db.Date)
     gender = db.Column(db.String)
@@ -44,8 +45,8 @@ class Citizen(db.Model):
     def birthdays_months(self):
         months = Counter()
         for relative_id in self.relatives:
-            birthday = str(
-                Citizen.query.filter_by(citizen_id=relative_id, import_id=self.import_id).first().birth_date.month)
+            birthday = str(Citizen.query.filter_by(citizen_id=relative_id, import_id=self.import_id).options(
+                load_only('birth_date')).first().birth_date.month)
             months[birthday] += 1
         return months
 

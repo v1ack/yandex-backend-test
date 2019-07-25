@@ -1,9 +1,11 @@
 from flask import request, jsonify, abort
+from sqlalchemy.orm import load_only
 from app import app, db
 from app.models import Citizen
 from datetime import date
 from app.utils import *
 from threading import Thread
+import re
 from sqlalchemy.orm.exc import NoResultFound
 
 
@@ -18,18 +20,30 @@ def imports():
     if not request.json or 'citizens' not in request.json:
         abort(400)
     citizens_count = Citizen.query.count()
-    import_id = Citizen.query.filter_by(id=citizens_count - 1).one().import_id + 1 if citizens_count else 1
+    import_id = Citizen.query.filter_by(id=citizens_count - 1).options(
+        load_only("import_id")).one().import_id + 1 if citizens_count else 1
     for citizen in request.json['citizens']:
-        db.session.add(Citizen(citizen_id=citizen["citizen_id"],
-                               town=citizen['town'],
-                               street=citizen['street'],
-                               building=citizen['building'],
-                               appartement=citizen['appartement'],
-                               name=citizen['name'],
-                               birth_date=citizen['birth_date'],
-                               gender=citizen['gender'],
-                               relatives=citizen['relatives'],
-                               import_id=import_id))
+        if isinstance(citizen['citizen_id'], int) and \
+                re.match(r'^\w{2,}', citizen['town']) and \
+                re.match(r'^\w{2,}', citizen['street']) and \
+                re.match(r'^(\w|\d)', citizen['building']) and \
+                isinstance(citizen['appartement'], int) and \
+                re.match(r'^\w{2,}', citizen['name']) and \
+                re.match(r'^(\d{2}[.]){2}\d{4}$', citizen['birth_date']) and \
+                re.match(r'^(male|female)$', citizen['gender']):
+            db.session.add(Citizen(citizen_id=citizen["citizen_id"],
+                                   town=citizen['town'],
+                                   street=citizen['street'],
+                                   building=citizen['building'],
+                                   appartement=citizen['appartement'],
+                                   name=citizen['name'],
+                                   birth_date=citizen['birth_date'],
+                                   gender=citizen['gender'],
+                                   relatives=citizen['relatives'],
+                                   import_id=import_id))
+        else:
+            db.session.rollback()
+            abort(400)
     db.session.commit()
     return jsonify({'data': {'import_id': import_id}}), 201
 
@@ -46,22 +60,48 @@ def edit_info(import_id, citizen_id):
         citizen = Citizen.query.filter_by(citizen_id=citizen_id, import_id=import_id).one()
     except NoResultFound:
         abort(400)
-    if 'town' in request.json:
-        citizen.town = request.json['town']
-    if 'street' in request.json:
-        citizen.street = request.json['street']
-    if 'building' in request.json:
-        citizen.building = request.json['building']
-    if 'appartement' in request.json:
-        citizen.appartement = request.json['appartement']
-    if 'name' in request.json:
-        citizen.name = request.json['name']
-    if 'birth_date' in request.json:
-        citizen.birth_date = request.json['birth_date']
-    if 'gender' in request.json:
-        citizen.gender = request.json['gender']
-    if 'relatives' in request.json:
-        citizen.relatives = request.json['relatives']
+    try:
+        if 'town' in request.json:
+            if re.match(r'^\w{2,}', request.json['town']):
+                citizen.town = request.json['town']
+            else:
+                raise ValueError
+        if 'street' in request.json:
+            if re.match(r'^\w{2,}', request.json['street']):
+                citizen.street = request.json['street']
+            else:
+                raise ValueError
+        if 'building' in request.json:
+            if re.match(r'^(\w|\d)', request.json['building']):
+                citizen.building = request.json['building']
+            else:
+                raise ValueError
+        if 'appartement' in request.json:
+            if isinstance(request.json['appartement'], int):
+                citizen.appartement = request.json['appartement']
+            else:
+                raise ValueError
+        if 'name' in request.json:
+            if re.match(r'^\w{2,}', request.json['name']):
+                citizen.name = request.json['name']
+            else:
+                raise ValueError
+        if 'birth_date' in request.json:
+            if re.match(r'^(\d{2}[.]){2}\d{4}$', request.json['birth_date']):
+                day, month, year = map(int, request.json['birth_date'].split('.'))
+                citizen.birth_date = date(year, month, day)
+            else:
+                raise ValueError
+        if 'gender' in request.json:
+            if re.match(r'^(male|female)$', request.json['gender']):
+                citizen.gender = request.json['gender']
+            else:
+                raise ValueError
+        if 'relatives' in request.json:
+            citizen.relatives = request.json['relatives']
+    except ValueError:
+        db.session.rollback()
+        abort(400)
     db.session.commit()
     return jsonify(citizen.get_dict()), 200
 
