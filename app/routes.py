@@ -15,44 +15,58 @@ def index():
 
 @app.route('/imports', methods=['POST'])
 def imports():
-    # Принимает на вход набор с данными о жителях в формате json и сохраняет его с уникальным идентификатором.
+    """Принимает на вход набор с данными о жителях в формате json и сохраняет его с уникальным идентификатором."""
     if not request.json or 'citizens' not in request.json:
         abort(400)
-    citizens_count = Citizen.query.count()
-    import_id = Citizen.query.filter_by(id=citizens_count - 1).options(
-        load_only("import_id")).one().import_id + 1 if citizens_count else 1
-    for citizen in request.json['citizens']:
-        if isinstance(citizen['citizen_id'], int) and \
-                re.match(r'^\w{2,}', citizen['town']) and \
-                re.match(r'^\w{2,}', citizen['street']) and \
-                re.match(r'^(\w|\d)', citizen['building']) and \
-                isinstance(citizen['appartement'], int) and \
-                re.match(r'^\w{2,}', citizen['name']) and \
-                re.match(r'^(\d{2}[.]){2}\d{4}$', citizen['birth_date']) and \
-                re.match(r'^(male|female)$', citizen['gender']):
-            db.session.add(Citizen(citizen_id=citizen["citizen_id"],
-                                   town=citizen['town'],
-                                   street=citizen['street'],
-                                   building=citizen['building'],
-                                   appartement=citizen['appartement'],
-                                   name=citizen['name'],
-                                   birth_date=citizen['birth_date'],
-                                   gender=citizen['gender'],
-                                   relatives=citizen['relatives'],
-                                   import_id=import_id))
-        else:
-            db.session.rollback()
-            abort(400)
+    # TODO убрать рандом
+    import_id = random.randint(0, 2147483647)
+    relatives = {}
+    try:
+        for citizen in request.json['citizens']:
+            if isinstance(citizen['citizen_id'], int) and \
+                    isinstance(citizen['town'], str) and citizen['town'] != '' and \
+                    isinstance(citizen['street'], str) and citizen['street'] != '' and \
+                    isinstance(citizen['building'], str) and citizen['building'] != '' and \
+                    isinstance(citizen['appartement'], int) and \
+                    isinstance(citizen['name'], str) and citizen['name'] != '' and \
+                    re.match(r'^(\d{2}[.]){2}\d{4}$', citizen['birth_date']) and \
+                    re.match(r'^(male|female)$', citizen['gender']):
+                db.session.add(Citizen(citizen_id=citizen["citizen_id"],
+                                       town=citizen['town'],
+                                       street=citizen['street'],
+                                       building=citizen['building'],
+                                       appartement=citizen['appartement'],
+                                       name=citizen['name'],
+                                       birth_date=citizen['birth_date'],
+                                       gender=citizen['gender'],
+                                       relatives=citizen['relatives'],
+                                       import_id=import_id))
+                if citizen['relatives']:
+                    relatives[citizen["citizen_id"]] = list(citizen['relatives'])
+            else:
+                raise ValueError
+        for cid, rels in relatives.items():
+            for i in rels.copy():
+                if cid in relatives[i]:
+                    rels.remove(i)
+                    relatives[i].remove(cid)
+                else:
+                    raise ValueError('relatives')
+    except (ValueError, KeyError):
+        citizens = Citizen.query.filter_by(import_id=import_id).options(load_only('citizen_id'))
+        [i.del_birthday() for i in citizens]
+        abort(400)
     db.session.commit()
     return jsonify({'data': {'import_id': import_id}}), 201
 
 
 @app.route('/imports/<int:import_id>/citizens/<int:citizen_id>', methods=['PATCH'])
 def edit_info(import_id, citizen_id):
-    # Изменяет информацию о жителе в указанном наборе данных.
-    # На вход подается JSON в котором можно указать любые данные о
-    # жителе (name, gender, birth_date, relatives, town, street,
-    # building, appartement), кроме citizen_id .
+    """Изменяет информацию о жителе в указанном наборе данных.
+    На вход подается JSON в котором можно указать любые данные о
+    жителе (name, gender, birth_date, relatives, town, street,
+    building, appartement), кроме citizen_id.
+    """
     if not request.json:
         abort(400)
     try:
@@ -61,17 +75,17 @@ def edit_info(import_id, citizen_id):
         abort(400)
     try:
         if 'town' in request.json:
-            if re.match(r'^\w{2,}', request.json['town']):
+            if isinstance(request.json['town'], str) and request.json['town'] != '':
                 citizen.town = request.json['town']
             else:
                 raise ValueError
         if 'street' in request.json:
-            if re.match(r'^\w{2,}', request.json['street']):
+            if isinstance(request.json['street'], str) and request.json['street'] != '':
                 citizen.street = request.json['street']
             else:
                 raise ValueError
         if 'building' in request.json:
-            if re.match(r'^(\w|\d)', request.json['building']):
+            if isinstance(request.json['building'], str) and request.json['building'] != '':
                 citizen.building = request.json['building']
             else:
                 raise ValueError
@@ -81,7 +95,7 @@ def edit_info(import_id, citizen_id):
             else:
                 raise ValueError
         if 'name' in request.json:
-            if re.match(r'^\w{2,}', request.json['name']):
+            if isinstance(request.json['name'], str) and request.json['name'] != '':
                 citizen.name = request.json['name']
             else:
                 raise ValueError
@@ -98,8 +112,18 @@ def edit_info(import_id, citizen_id):
             else:
                 raise ValueError
         if 'relatives' in request.json:
+            relatives_new = [Citizen.query.filter_by(import_id=import_id, citizen_id=i).one() for i in
+                             set(request.json['relatives']) - set(citizen.relatives)]
+            relatives_to_delete = [Citizen.query.filter_by(import_id=import_id, citizen_id=i).one() for i in
+                                   set(citizen.relatives) - set(request.json['relatives'])]
+            db.session.autocommit = True
+            for i in relatives_to_delete:
+                t = i.relatives.copy().remove(citizen_id)
+                i.relatives = t
+            for i in relatives_new:
+                i.relatives = i.relatives + [citizen_id]
             citizen.relatives = request.json['relatives']
-    except ValueError:
+    except (ValueError, NoResultFound):
         db.session.rollback()
         abort(400)
     db.session.commit()
@@ -108,7 +132,7 @@ def edit_info(import_id, citizen_id):
 
 @app.route('/imports/<int:import_id>/citizens', methods=['GET'])
 def get_info(import_id):
-    # Возвращает список всех жителей для указанного набора данных
+    """Возвращает список всех жителей для указанного набора данных"""
     citizens = Citizen.query.filter_by(import_id=import_id)
     if not citizens.count():
         abort(400)
@@ -117,9 +141,10 @@ def get_info(import_id):
 
 @app.route('/imports/<int:import_id>/citizens/birthdays', methods=['GET'])
 def birthdays(import_id):
-    # Возвращает жителей и количество подарков, которые они будут покупать своим
-    # ближайшим родственникам (1-го порядка), сгруппированных по месяцам из
-    # указанного набора данных.
+    """Возвращает жителей и количество подарков, которые они будут покупать своим
+    ближайшим родственникам (1-го порядка), сгруппированных по месяцам из
+    указанного набора данных.
+    """
     citizens = Citizen.query.filter_by(import_id=import_id)
     count = citizens.count()
     if not count:
@@ -134,8 +159,9 @@ def birthdays(import_id):
 
 @app.route('/imports/<int:import_id>/towns/stat/percentile/age', methods=['GET'])
 def statistic(import_id):
-    # Возвращает статистику по городам для указанного набора данных в разрезе
-    # возраста жителей: p50, p75, p99, где число - это значение перцентиля
+    """Возвращает статистику по городам для указанного набора данных в разрезе
+    возраста жителей: p50, p75, p99, где число - это значение перцентиля
+    """
     citizens = Citizen.query.filter_by(import_id=import_id)
     if not citizens.count():
         abort(400)
@@ -153,14 +179,14 @@ def statistic(import_id):
 
 @app.route('/init', methods=['GET'])
 def init_db():
-    # Инициализация БД, например после удаления
+    """Инициализация БД, например после удаления"""
     db.create_all()
     return 'done'
 
 
 @app.route('/make_citizens_dust', methods=['GET'])
 def delete_all():
-    # Удаление базы, полное и необратимое
+    """Удаление базы, полное и необратимое"""
     db.drop_all()
     redis.flushdb()
     return 'done, lol'
@@ -168,5 +194,5 @@ def delete_all():
 
 @app.route('/generate/<int:count>', methods=['GET'])
 def generate(count):
-    # Генерация JSON для импорта
+    """Генерация JSON для импорта"""
     return jsonify(generate_dict_for_json(count))

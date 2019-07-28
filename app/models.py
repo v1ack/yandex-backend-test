@@ -31,6 +31,9 @@ class Citizen(db.Model):
         self.import_id = import_id
         redis.set(f'{citizen_id}_{import_id}', month)
 
+    def del_birthday(self):
+        redis.delete(f'{self.citizen_id}_{self.import_id}')
+
     def get_dict(self):
         return dict(citizen_id=self.citizen_id,
                     town=self.town,
