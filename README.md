@@ -46,9 +46,15 @@
 ### Установка и развертывание
 Установка всех зависимостей
 
-    sudo apt-get install pip3 postgresql postgresql-contrib libpq-dev redis-server
-    pip3 install flask flask_sqlalchemy psycopg2 gunicorn redis
+    sudo apt-get install python3-pip postgresql postgresql-contrib libpq-dev redis-server
+    pip3 install flask flask_sqlalchemy psycopg2-binary gunicorn redis
     git clone https://github.com/v1ack/yandex-backend-test.git
+Далее необходимо установить пароль для postgres и создать БД для тестов
+
+    sudo -u postgres psql
+    alter user postgres with encrypted password 'postgres';
+    create database tests;
+    \q
 
 ### Запуск сервера
 В папке приложения
