@@ -1,10 +1,9 @@
 from flask import request, jsonify, abort
-from sqlalchemy.orm import load_only
 from app import app, db, redis
-from app.models import Citizen
+from app.models import Citizen, percentile
 from datetime import date
-from app.utils import *
-import re
+from app.utils import generate_dict_for_json
+import random
 from sqlalchemy.orm.exc import NoResultFound
 
 
@@ -13,48 +12,44 @@ def index():
     return 'seems to be working, lol'
 
 
+def get_new_import_id():
+    while True:
+        import_id = random.randint(0, 2147483647)
+        if not Citizen.query.filter_by(import_id=import_id).first():
+            return import_id
+
+
 @app.route('/imports', methods=['POST'])
 def imports():
     """Принимает на вход набор с данными о жителях в формате json и сохраняет его с уникальным идентификатором."""
     if not request.json or 'citizens' not in request.json:
         abort(400)
     # TODO убрать рандом
-    import_id = random.randint(0, 2147483647)
+    import_id = get_new_import_id()
     relatives = {}
     try:
         for citizen in request.json['citizens']:
-            if isinstance(citizen['citizen_id'], int) and \
-                    isinstance(citizen['town'], str) and citizen['town'] != '' and \
-                    isinstance(citizen['street'], str) and citizen['street'] != '' and \
-                    isinstance(citizen['building'], str) and citizen['building'] != '' and \
-                    isinstance(citizen['appartement'], int) and \
-                    isinstance(citizen['name'], str) and citizen['name'] != '' and \
-                    re.match(r'^(\d{2}[.]){2}\d{4}$', citizen['birth_date']) and \
-                    re.match(r'^(male|female)$', citizen['gender']):
-                db.session.add(Citizen(citizen_id=citizen["citizen_id"],
-                                       town=citizen['town'],
-                                       street=citizen['street'],
-                                       building=citizen['building'],
-                                       appartement=citizen['appartement'],
-                                       name=citizen['name'],
-                                       birth_date=citizen['birth_date'],
-                                       gender=citizen['gender'],
-                                       relatives=citizen['relatives'],
-                                       import_id=import_id))
-                if citizen['relatives']:
-                    relatives[citizen["citizen_id"]] = list(citizen['relatives'])
-            else:
-                raise ValueError
+            db.session.add(Citizen(citizen_id=citizen["citizen_id"],
+                                   town=citizen['town'],
+                                   street=citizen['street'],
+                                   building=citizen['building'],
+                                   appartement=citizen['appartement'],
+                                   name=citizen['name'],
+                                   birth_date=citizen['birth_date'],
+                                   gender=citizen['gender'],
+                                   relatives=citizen['relatives'],
+                                   import_id=import_id))
+            if citizen['relatives']:
+                relatives[citizen["citizen_id"]] = list(citizen['relatives'])
         for cid, rels in relatives.items():
             for i in rels.copy():
                 if cid in relatives[i]:
                     rels.remove(i)
-                    relatives[i].remove(cid)
+                    if cid != i:
+                        relatives[i].remove(cid)
                 else:
                     raise ValueError('relatives')
     except (ValueError, KeyError):
-        citizens = Citizen.query.filter_by(import_id=import_id).options(load_only('citizen_id'))
-        [i.del_birthday() for i in citizens]
         abort(400)
     db.session.commit()
     return jsonify({'data': {'import_id': import_id}}), 201
@@ -75,56 +70,32 @@ def edit_info(import_id, citizen_id):
         abort(400)
     try:
         if 'town' in request.json:
-            if isinstance(request.json['town'], str) and request.json['town'] != '':
-                citizen.town = request.json['town']
-            else:
-                raise ValueError
+            citizen.town = request.json['town']
         if 'street' in request.json:
-            if isinstance(request.json['street'], str) and request.json['street'] != '':
-                citizen.street = request.json['street']
-            else:
-                raise ValueError
+            citizen.street = request.json['street']
         if 'building' in request.json:
-            if isinstance(request.json['building'], str) and request.json['building'] != '':
-                citizen.building = request.json['building']
-            else:
-                raise ValueError
+            citizen.building = request.json['building']
         if 'appartement' in request.json:
-            if isinstance(request.json['appartement'], int):
-                citizen.appartement = request.json['appartement']
-            else:
-                raise ValueError
+            citizen.appartement = request.json['appartement']
         if 'name' in request.json:
-            if isinstance(request.json['name'], str) and request.json['name'] != '':
-                citizen.name = request.json['name']
-            else:
-                raise ValueError
+            citizen.name = request.json['name']
         if 'birth_date' in request.json:
-            if re.match(r'^(\d{2}[.]){2}\d{4}$', request.json['birth_date']):
-                day, month, year = map(int, request.json['birth_date'].split('.'))
-                citizen.birth_date = date(year, month, day)
-                redis.set(f'{citizen_id}_{import_id}', month)
-            else:
-                raise ValueError
+            citizen.birth_date = request.json['birth_date']
         if 'gender' in request.json:
-            if re.match(r'^(male|female)$', request.json['gender']):
-                citizen.gender = request.json['gender']
-            else:
-                raise ValueError
+            citizen.gender = request.json['gender']
         if 'relatives' in request.json:
             relatives_new = [Citizen.query.filter_by(import_id=import_id, citizen_id=i).one() for i in
                              set(request.json['relatives']) - set(citizen.relatives)]
             relatives_to_delete = [Citizen.query.filter_by(import_id=import_id, citizen_id=i).one() for i in
                                    set(citizen.relatives) - set(request.json['relatives'])]
-            db.session.autocommit = True
             for i in relatives_to_delete:
-                t = i.relatives.copy().remove(citizen_id)
+                t = i.relatives.copy()
+                t.remove(citizen_id)
                 i.relatives = t
             for i in relatives_new:
                 i.relatives = i.relatives + [citizen_id]
             citizen.relatives = request.json['relatives']
     except (ValueError, NoResultFound):
-        db.session.rollback()
         abort(400)
     db.session.commit()
     return jsonify(citizen.get_dict()), 200
