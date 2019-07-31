@@ -161,7 +161,7 @@ def track_instances_before_flush(session, context, instances):
 
 
 @event.listens_for(db.session, "before_commit")
-def set_pending_changes_before_commit(session):
+def set_changes_before_commit(session):
     session.flush()
     modified_instances = session.info.get("modified_instances", set())
     del session.info["modified_instances"]

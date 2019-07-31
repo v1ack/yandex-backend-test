@@ -1,15 +1,20 @@
-from flask import request, jsonify, abort
+from flask import request, jsonify, abort, render_template, redirect
 from app import app, db, redis
 from app.models import Citizen, percentile
 from datetime import date
 from app.utils import generate_dict_for_json
 import random
 from sqlalchemy.orm.exc import NoResultFound
+from sqlalchemy.exc import ProgrammingError
 
 
 @app.route('/', methods=['GET', 'POST'])
 def index():
-    return 'seems to be working, lol'
+    try:
+        citizens_count = Citizen.query.count()
+    except ProgrammingError:
+        citizens_count = -1
+    return render_template('index.html', citizens_count=citizens_count)
 
 
 def get_new_import_id():
@@ -152,7 +157,7 @@ def statistic(import_id):
 def init_db():
     """Инициализация БД, например после удаления"""
     db.create_all()
-    return 'done'
+    return redirect('/')
 
 
 @app.route('/make_citizens_dust', methods=['GET'])
