@@ -22,17 +22,16 @@ class UnitTest(unittest.TestCase):
 
     def test_index(self):
         response = self.app.get('/')
-        assert response.data == b'seems to be working, lol'
         assert response.status_code == 200
 
     def test_imports(self):
         random_json = json.dumps(generate_dict_for_json(10))
         random_json2 = json.dumps(generate_dict_for_json(100))
         response = self.app.post('/imports', content_type='application/json', data=random_json)
-        # assert response.get_json()['data']['import_id'] == 1
+        assert response.get_json()['data']['import_id'] == 1
         assert response.status_code == 201
         response = self.app.post('/imports', content_type='application/json', data=random_json2)
-        # assert response.get_json()['data']['import_id'] == 2
+        assert response.get_json()['data']['import_id'] == 2
         assert response.status_code == 201
 
     def test_get_import(self):
@@ -114,9 +113,9 @@ class UnitTest(unittest.TestCase):
         response = self.app.get(f'/imports/{import_id}/towns/stat/percentile/age')
         assert response.get_json() == json.loads(right)
 
-    # @unittest.skip
+    @unittest.skip
     def test_import_10000(self):
-        random_json = json.dumps(generate_dict_for_json(10000))
+        random_json = json.dumps(generate_dict_for_json(10000, relations_count=5000))
         response = self.app.post('/imports', content_type='application/json', data=random_json)
         assert response.status_code == 201
 
@@ -145,6 +144,23 @@ class UnitTest(unittest.TestCase):
             'import_id']
         response = self.app.get(f'/imports/{import_id}/towns/stat/percentile/age')
         assert response.status_code == 200
+
+    @unittest.skip
+    def test_parallel(self):
+        random_json = json.dumps(generate_dict_for_json(10000))
+        random_json2 = json.dumps(generate_dict_for_json(10000, error_line=9800))
+        from threading import Thread
+
+        def imports_threading(json_):
+            req = self.app.post('/imports', content_type='application/json', data=json_).get_json()
+
+        t1, t2 = Thread(target=imports_threading, args=(random_json,)), Thread(target=imports_threading,
+                                                                               args=(random_json2,))
+        t1.start()
+        t2.start()
+        t1.join()
+        t2.join()
+        assert Citizen.query.count() == 10000
 
 
 if __name__ == '__main__':

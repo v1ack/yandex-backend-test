@@ -7,6 +7,22 @@ from sqlalchemy import event
 from app import db, redis
 
 
+class Import(db.Model):
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+
+    @classmethod
+    def add_id(cls):
+        import_ = Import()
+        db.session.add(import_)
+        db.session.commit()
+        return import_.id
+
+    @staticmethod
+    def remove_id(id):
+        Import.query.filter_by(id=id).delete()
+        db.session.commit()
+
+
 class Citizen(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     citizen_id = db.Column(db.Integer)
@@ -41,7 +57,7 @@ class Citizen(db.Model):
         if re.search(r'[\w]+', town):
             self._town = town
         else:
-            raise ValueError
+            raise ValueError('Town')
 
     @property
     def street(self):
@@ -52,7 +68,7 @@ class Citizen(db.Model):
         if re.search(r'[\w\d]+', street):
             self._street = street
         else:
-            raise ValueError
+            raise ValueError('Street')
 
     @property
     def building(self):
@@ -63,7 +79,7 @@ class Citizen(db.Model):
         if re.search(r'[\w\d]+', building):
             self._building = building
         else:
-            raise ValueError
+            raise ValueError('Building')
 
     @property
     def appartement(self):
@@ -74,7 +90,7 @@ class Citizen(db.Model):
         if isinstance(appartement, int):
             self._appartement = appartement
         else:
-            raise ValueError
+            raise ValueError('Appartement')
 
     @property
     def name(self):
@@ -85,7 +101,7 @@ class Citizen(db.Model):
         if re.search(r'\w+ \w+', name):
             self._name = name
         else:
-            raise ValueError
+            raise ValueError('Name')
 
     @property
     def gender(self):
@@ -96,7 +112,7 @@ class Citizen(db.Model):
         if re.match(r'^(male|female)$', gender):
             self._gender = gender
         else:
-            raise ValueError
+            raise ValueError('Gender')
 
     @property
     def birth_date(self):
@@ -107,7 +123,7 @@ class Citizen(db.Model):
         if re.match(r'^(\d{2}[.]){2}\d{4}$', birth_date):
             self._birth_date = date(*map(int, reversed(birth_date.split('.'))))
         else:
-            raise ValueError
+            raise ValueError('Birth date')
 
     @property
     def relatives(self):
@@ -118,7 +134,7 @@ class Citizen(db.Model):
         if isinstance(relatives, list):
             self._relatives = relatives
         else:
-            raise ValueError
+            raise ValueError('Relatives')
 
     def del_birthday(self):
         redis.delete(f'{self.citizen_id}_{self.import_id}')
@@ -164,7 +180,6 @@ def track_instances_before_flush(session, context, instances):
 def set_changes_before_commit(session):
     session.flush()
     modified_instances = session.info.get("modified_instances", set())
-    del session.info["modified_instances"]
     for obj in modified_instances:
         redis.set(f'{obj.citizen_id}_{obj.import_id}', obj._birth_date.month)
 

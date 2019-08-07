@@ -1,9 +1,8 @@
 from flask import request, jsonify, abort, render_template, redirect
 from app import app, db, redis
-from app.models import Citizen, percentile
+from app.models import Citizen, percentile, Import
 from datetime import date
 from app.utils import generate_dict_for_json
-import random
 from sqlalchemy.orm.exc import NoResultFound
 from sqlalchemy.exc import ProgrammingError
 
@@ -17,20 +16,12 @@ def index():
     return render_template('index.html', citizens_count=citizens_count)
 
 
-def get_new_import_id():
-    while True:
-        import_id = random.randint(0, 2147483647)
-        if not Citizen.query.filter_by(import_id=import_id).first():
-            return import_id
-
-
 @app.route('/imports', methods=['POST'])
 def imports():
     """Принимает на вход набор с данными о жителях в формате json и сохраняет его с уникальным идентификатором."""
     if not request.json or 'citizens' not in request.json:
-        abort(400)
-    # TODO убрать рандом
-    import_id = get_new_import_id()
+        return jsonify({'error': {'status': 400, 'reason': 'No data given'}}), 400
+    import_id = Import.add_id()
     relatives = {}
     try:
         for citizen in request.json['citizens']:
@@ -54,8 +45,11 @@ def imports():
                         relatives[i].remove(cid)
                 else:
                     raise ValueError('relatives')
-    except (ValueError, KeyError):
-        abort(400)
+    except (ValueError, KeyError) as err:
+        db.session.rollback()
+        Import.remove_id(import_id)
+        err_description = f'Error in {err}' if isinstance(err, ValueError) else f'Relative {err} error'
+        return jsonify({'error': {'status': 400, 'reason': err_description}}), 400
     db.session.commit()
     return jsonify({'data': {'import_id': import_id}}), 201
 
@@ -68,11 +62,11 @@ def edit_info(import_id, citizen_id):
     building, appartement), кроме citizen_id.
     """
     if not request.json:
-        abort(400)
+        return jsonify({'error': {'status': 400, 'reason': 'No data given'}}), 400
     try:
         citizen = Citizen.query.filter_by(citizen_id=citizen_id, import_id=import_id).one()
     except NoResultFound:
-        abort(400)
+        return jsonify({'error': {'status': 400, 'reason': 'Bad import id or citizen id'}}), 400
     try:
         if 'town' in request.json:
             citizen.town = request.json['town']
@@ -100,8 +94,9 @@ def edit_info(import_id, citizen_id):
             for i in relatives_new:
                 i.relatives = i.relatives + [citizen_id]
             citizen.relatives = request.json['relatives']
-    except (ValueError, NoResultFound):
-        abort(400)
+    except (ValueError, NoResultFound) as err:
+        err_description = f'Error in {err}' if isinstance(err, ValueError) else f'Relative {err} error'
+        return jsonify({'error': {'status': 400, 'reason': err_description}}), 400
     db.session.commit()
     return jsonify(citizen.get_dict()), 200
 
@@ -109,9 +104,9 @@ def edit_info(import_id, citizen_id):
 @app.route('/imports/<int:import_id>/citizens', methods=['GET'])
 def get_info(import_id):
     """Возвращает список всех жителей для указанного набора данных"""
+    if not Import.query.filter_by(id=import_id).one_or_none():
+        return jsonify({'error': {'status': 400, 'reason': 'Bad import id'}}), 400
     citizens = Citizen.query.filter_by(import_id=import_id)
-    if not citizens.count():
-        abort(400)
     return jsonify({'data': [i.get_dict() for i in citizens]}), 200
 
 
@@ -121,10 +116,9 @@ def birthdays(import_id):
     ближайшим родственникам (1-го порядка), сгруппированных по месяцам из
     указанного набора данных.
     """
+    if not Import.query.filter_by(id=import_id).one_or_none():
+        return jsonify({'error': {'status': 400, 'reason': 'Bad import id'}}), 400
     citizens = Citizen.query.filter_by(import_id=import_id)
-    count = citizens.count()
-    if not count:
-        abort(400)
     months = {f'{i}': [] for i in range(1, 13)}
     for citizen in citizens:
         birthdays_months = citizen.birthdays_months()
@@ -138,9 +132,9 @@ def statistic(import_id):
     """Возвращает статистику по городам для указанного набора данных в разрезе
     возраста жителей: p50, p75, p99, где число - это значение перцентиля
     """
+    if not Import.query.filter_by(id=import_id).one_or_none():
+        return jsonify({'error': {'status': 400, 'reason': 'Bad import id'}}), 400
     citizens = Citizen.query.filter_by(import_id=import_id)
-    if not citizens.count():
-        abort(400)
     cities = {}
     today = date.today()
     for citizen in citizens:

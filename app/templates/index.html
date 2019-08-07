@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <title>RESTful API</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/uikit/3.1.6/css/uikit.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/uikit/3.1.6/js/uikit.min.js"></script>
 </head>
@@ -21,48 +22,32 @@
 <div class="uk-section uk-section-muted">
     <div class="uk-container">
         <h1 id="restfulpythonapi">readme</h1>
-
         <h3 id="">Использованные библиотеки</h3>
-
         <h5 id="-1">Встроенные</h5>
-
         <ul>
             <li>datetime</li>
-
             <li>json</li>
-
             <li>math - для перцентилей</li>
-
             <li>random - для генерации случайных импортов</li>
-
             <li>collections.Counter - счетчик</li>
         </ul>
-
         <h5 id="-2">Сторонние</h5>
-
         <ul>
             <li><a href="https://palletsprojects.com/p/flask/" title="flask">flask</a> - framework для
                 веб-приложений
             </li>
-
             <li><a href="https://www.sqlalchemy.org" title="SQLAlchemy">SQLAlchemy</a> (flask_sqlalchemy) - ORM для
                 СУБД, что позваляет обращаться к записям из БД как к объектам
             </li>
-
             <li><a href="https://pypi.org/project/psycopg2/" title="psycopg2">psycopg2</a> - драйвер для PostgreSQL
             </li>
-
             <li><a href="https://github.com/andymccurdy/redis-py" title="redis">redis</a> - клиент redis для python
             </li>
-
             <li><a href="https://gunicorn.org" title="Gunicorn">Gunicorn</a> - сервер</li>
         </ul>
-
         <h3 id="-3">Программы</h3>
-
         <ul>
             <li><a href="https://www.postgresql.org" title="PostgreSQL">PostgreSQL</a> СУБД</li>
-
             <li><a href="https://redis.io" title="https://redis.io">redis</a> - база данных "ключ-значение",
                 оказалась
                 намного более эффективным решением для хранения месяцев рождения, чем база данных (скорость выросла
@@ -70,72 +55,51 @@
                 раз)
             </li>
         </ul>
-
         <h3 id="api">Методы API</h3>
-
         <p><code>POST /imports</code>
             Принимает на вход набор с данными о жителях в формате json и сохраняет его с уникальным идентификатором.
         </p>
-
         <p><code>PATCH /imports/&lt;int:import_id&gt;/citizens/&lt;int:citizen_id&gt;</code>
             Изменяет информацию о жителе в указанном наборе данных. На вход подается JSON в котором можно указать
             любые
-            данные о жителе (name, gender, birth<em>date, relatives, town, street, building, appartement), кроме
-                citizen</em>id.</p>
-
+            данные о жителе (name, gender, birth_date, relatives, town, street, building, appartement), кроме
+            citizen_id.</p>
         <p><code>GET /imports/&lt;int:import_id&gt;/citizens</code>
             Возвращает список всех жителей для указанного набора данных</p>
-
         <p><code>GET /imports/&lt;int:import_id&gt;/citizens/birthdays</code>
             Возвращает жителей и количество подарков, которые они будут покупать своим ближайшим родственникам (1-го
             порядка), сгруппированных по месяцам из указанного набора данных</p>
-
         <p><code>GET /imports/&lt;int:import_id&gt;/towns/stat/percentile/age</code>
             Возвращает статистику по городам для указанного набора данных в разрезе возраста жителей: p50, p75, p99,
             где
             число - это значение перцентиля</p>
-
         <p><code>GET /generate/&lt;int:count&gt;</code>
             Генерация JSON для импорта</p>
-
         <p><code>GET /init</code>
             Инициализация БД</p>
-
         <p><code>GET /make_citizens_dust</code>
             Полное и необратимое удаление ~~всего и вся~~ бызы данных</p>
-
         <h3 id="-4">Установка и развертывание</h3>
-
         <p>Установка всех зависимостей</p>
-
         <pre><code>sudo apt-get install python3-pip postgresql postgresql-contrib libpq-dev redis-server
 pip3 install flask flask_sqlalchemy psycopg2-binary gunicorn redis
 git clone https://github.com/v1ack/yandex-backend-test.git
 </code></pre>
-
         <p>Далее необходимо установить пароль для postgres и создать БД для тестов</p>
-
         <pre><code>sudo -u postgres psql
 alter user postgres with encrypted password 'postgres';
 create database tests;
 \q
 </code></pre>
-
         <h3 id="-5">Запуск сервера</h3>
-
         <p>В папке приложения</p>
-
         <pre><code>gunicorn -b 0.0.0.0:8080 app:app
 </code></pre>
-
         <p>После первого запуска необходимо инициализировать БД <code>GET /init</code></p>
-
         <p><em>Чтобы это все само работало мне понадобилось очень много времени</em></p>
-
         <p>В папке <code>/etc/systemd/system</code> надо создать <code>gunicorn.service</code> со следующим
             содержанием
         </p>
-
         <pre><code>[Unit]
 Description=gunicorn daemon
 After=network.target
@@ -151,15 +115,11 @@ PrivateTmp=true
 [Install]
 WantedBy=multi-user.target
 </code></pre>
-
         <p>Дальше открываем консоль и заставляем всё это работать</p>
-
         <pre><code>sudo systemctl enable gunicorn.service
 sudo systemctl start gunicorn.service
 </code></pre>
-
         <h3 id="-6">Тесты</h3>
-
         <p><strong>tests.py</strong> - тесты всех 5 API + тесты на нагрузку (убрать декораторы, чтобы запустить)</p>
     </div>
 </div>
