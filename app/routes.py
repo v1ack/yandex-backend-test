@@ -98,7 +98,7 @@ def edit_info(import_id, citizen_id):
         err_description = f'Error in {err}' if isinstance(err, ValueError) else f'Relative {err} error'
         return jsonify({'error': {'status': 400, 'reason': err_description}}), 400
     db.session.commit()
-    return jsonify(citizen.get_dict()), 200
+    return jsonify({'data': citizen.get_dict()}), 200
 
 
 @app.route('/imports/<int:import_id>/citizens', methods=['GET'])
@@ -124,7 +124,7 @@ def birthdays(import_id):
         birthdays_months = citizen.birthdays_months()
         for k, v in birthdays_months.items():
             months[k].append({"citizen_id": citizen.citizen_id, "presents": v})
-    return jsonify({"data": months}), 200
+    return jsonify({'data': months}), 200
 
 
 @app.route('/imports/<int:import_id>/towns/stat/percentile/age', methods=['GET'])
